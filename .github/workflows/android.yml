@@ -18,7 +18,10 @@ jobs:
         run: |
           mkdir -p buildsrc
           unzip -q Kunduz_Mines_Visitors_Android_Project_v1.1.zip -d buildsrc
-
+      - name: Enable AndroidX
+        run: |
+          echo "android.useAndroidX=true" >> buildsrc/gradle.properties
+          echo "android.enableJetifier=true" >> buildsrc/gradle.properties
       - name: Find Android project
         run: |
           echo "Searching for build.gradle.kts..."
