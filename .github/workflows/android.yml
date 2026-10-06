@@ -19,6 +19,10 @@ jobs:
           mkdir buildsrc
           unzip -q Kunduz_Mines_Visitors_Android_Project_v1.1.zip -d buildsrc
 
+      - name: Add AndroidX properties
+        run: |
+          cp gradle.properties buildsrc/gradle.properties
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
