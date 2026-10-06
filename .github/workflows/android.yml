@@ -18,7 +18,16 @@ jobs:
         run: |
           mkdir -p buildscr
           unzip -q Kunduz_Mines_Visitors_Android_Project_v1.1.zip -d buildscr
+      - name: Fix CSV Kotlin error
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
 
+          p = Path("buildscr/app/src/main/java/af/gov/momp/visitors/MainActivity.kt")
+          s = p.read_text()
+                    s = s.replace('it.replace(', 'it.toString().replace(', 1)
+          p.write_text(s)
+          PY
       - name: Add AndroidX properties
         run: |
           printf "android.useAndroidX=true\nandroid.enableJetifier=true\n" > buildscr/gradle.properties
