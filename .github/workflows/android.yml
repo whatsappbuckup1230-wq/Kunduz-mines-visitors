@@ -25,14 +25,16 @@ jobs:
 
       - name: Fix JVM target
         run: |
-          sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' buildsrc/app/build.gradle.kts
-          sed -i 's/jvmTarget = "1.8"/jvmTarget = "17"/g' buildsrc/app/build.gradle.kts
-          sed -i 's/sourceCompatibility = JavaVersion.VERSION_1_8/sourceCompatibility = JavaVersion.VERSION_17/g' buildsrc/app/build.gradle.kts
-          sed -i 's/targetCompatibility = JavaVersion.VERSION_1_8/targetCompatibility = JavaVersion.VERSION_17/g' buildsrc/app/build.gradle.kts
+          find buildsrc -name "*.gradle.kts" -type f -exec sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' {} \;
+          find buildsrc -name "*.gradle.kts" -type f -exec sed -i 's/jvmTarget = "1.8"/jvmTarget = "17"/g' {} \;
+          find buildsrc -name "*.gradle.kts" -type f -exec sed -i 's/sourceCompatibility = JavaVersion.VERSION_1_8/sourceCompatibility = JavaVersion.VERSION_17/g' {} \;
+          find buildsrc -name "*.gradle.kts" -type f -exec sed -i 's/targetCompatibility = JavaVersion.VERSION_1_8/targetCompatibility = JavaVersion.VERSION_17/g' {} \;
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
+          java-version: '17'
           distribution: temurin
           java-version: '17'
       - name: Setup Android SDK
