@@ -23,12 +23,16 @@ jobs:
         run: |
           cp gradle.properties buildsrc/gradle.properties
 
+      - name:  Fix JVM target
+        run: |
+          sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' buildsrc/app/build.gradle.kts
+          sed -i 's/jvmTarget = "1.8"/jvmTarget = "17"/g' buildsrc/app/build.gradle.kts
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
