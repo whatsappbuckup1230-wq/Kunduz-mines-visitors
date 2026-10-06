@@ -22,7 +22,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("buildsrc/app/src/main/java/af/gov/momp/visitors/MainActivity.kt")
+       p = next(Path("buildsrc").rglob("MainActivity.kt"))
           lines = p.read_text().splitlines()
           lines[228] = r'        v.joinToString("\n"){listOf(it.id,it.name,it.father,it.phone,it.tazkira,it.province,it.district,it.date,it.time,it.department,it.subject,it.responsible,it.note).joinToString(","){ "\""+it.toString().replace("\"","\"\"")+"\"" }}'
           p.write_text("\n".join(lines) + "\n")
