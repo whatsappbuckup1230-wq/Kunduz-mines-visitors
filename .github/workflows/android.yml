@@ -1,3 +1,4 @@
+```yaml
 name: Build Android APK
 
 on:
@@ -18,16 +19,13 @@ jobs:
         run: |
           mkdir -p buildsrc
           unzip -q Kunduz_Mines_Visitors_Android_Project_v1.1.zip -d buildsrc
+
       - name: Enable AndroidX
         run: |
           echo "android.useAndroidX=true" >> buildsrc/gradle.properties
           echo "android.enableJetifier=true" >> buildsrc/gradle.properties
-      - name: Find Android project
-        run: |
-          echo "Searching for build.gradle.kts..."
-          find buildsrc -name "build.gradle.kts" -type f
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -35,8 +33,6 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -49,19 +45,42 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: Fix JVM target
+      - name: Force JVM 17
         run: |
-          find "$PROJECT_DIR" -name "*.gradle.kts" -type f -exec sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' {} \;
-          find "$PROJECT_DIR" -name "*.gradle.kts" -type f -exec sed -i 's/jvmTarget = "1.8"/jvmTarget = "17"/g' {} \;
-          find "$PROJECT_DIR" -name "*.gradle.kts" -type f -exec sed -i 's/sourceCompatibility = JavaVersion.VERSION_1_8/sourceCompatibility = JavaVersion.VERSION_17/g' {} \;
-          find "$PROJECT_DIR" -name "*.gradle.kts" -type f -exec sed -i 's/targetCompatibility = JavaVersion.VERSION_1_8/targetCompatibility = JavaVersion.VERSION_17/g' {} \;
+          echo "Fixing all JVM targets to Java 17..."
+
+          find "$PROJECT_DIR" -name "*.gradle.kts" -type f -exec sed -i \
+            -e 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' \
+            -e 's/JavaVersion.VERSION_8/JavaVersion.VERSION_17/g' \
+            -e 's/jvmTarget = "1.8"/jvmTarget = "17"/g' \
+            -e 's/jvmTarget = "8"/jvmTarget = "17"/g' \
+            -e 's/sourceCompatibility = JavaVersion.VERSION_1_8/sourceCompatibility = JavaVersion.VERSION_17/g' \
+            -e 's/targetCompatibility = JavaVersion.VERSION_1_8/targetCompatibility = JavaVersion.VERSION_17/g' \
+            -e 's/sourceCompatibility = JavaVersion.VERSION_8/sourceCompatibility = JavaVersion.VERSION_17/g' \
+            -e 's/targetCompatibility = JavaVersion.VERSION_8/targetCompatibility = JavaVersion.VERSION_17/g' \
+            {} \;
+
+      - name: Verify JVM configuration
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          echo "Java version:"
+          java -version
+
+          echo "Gradle version:"
+          gradle --version
+
+          echo "Checking JVM settings:"
+          grep -R "VERSION_1_8\|VERSION_8\|jvmTarget.*1.8\|jvmTarget.*8" \
+            --include="*.gradle.kts" . || true
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
-        run: gradle assembleDebug
+        run: |
+          gradle clean assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Kunduz-Mines-Visitors-APK
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+```
