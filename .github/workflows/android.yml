@@ -1,4 +1,5 @@
 
+
 name: Build Android APK
 
 on:
@@ -33,63 +34,30 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Force Java and Kotlin JVM 17
-  run: 
-    APP_GRADLE=$(find "$PROJECT_DIR" -path "*/app/build.gradle.kts" -type f -print -quit)
-
-    cat >> "$APP_GRADLE" <<'EOF'
-
-    android {
-        compileOptions {
-            sourceCompatibility = JavaVersion.VERSION_17
-            targetCompatibility = JavaVersion.VERSION_17
-        }
-    }
-
-    tasks.withType<JavaCompile>().configureEach {
-        sourceCompatibility = "17"
-        targetCompatibility = "17"
-        options.release.set(17)
-    }
-
-    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-        kotlinOptions {
-            jvmTarget = "17"
-        }
-    }
-    EOF
+      - name: Find Gradle project
         run: |
-          echo "Fixing all JVM targets to Java 17..."
+          PROJECT_DIR=$(find buildsrc -name "settings.gradle*" -type f -print -quit | xargs dirname)
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project: $PROJECT_DIR"
 
-          find "$PROJECT_DIR" -name "*.gradle.kts" -type f -exec sed -i \
+      - name: Fix Java and Kotlin JVM targets
+        run: |
+          find "$PROJECT_DIR" \( -name "*.gradle" -o -name "*.gradle.kts" \) -type f -exec sed -i \
             -e 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' \
             -e 's/JavaVersion.VERSION_8/JavaVersion.VERSION_17/g' \
-            -e 's/jvmTarget = "1.8"/jvmTarget = "17"/g' \
-            -e 's/jvmTarget = "8"/jvmTarget = "17"/g' \
-            -e 's/sourceCompatibility = JavaVersion.VERSION_1_8/sourceCompatibility = JavaVersion.VERSION_17/g' \
-            -e 's/targetCompatibility = JavaVersion.VERSION_1_8/targetCompatibility = JavaVersion.VERSION_17/g' \
-            -e 's/sourceCompatibility = JavaVersion.VERSION_8/sourceCompatibility = JavaVersion.VERSION_17/g' \
-            -e 's/targetCompatibility = JavaVersion.VERSION_8/targetCompatibility = JavaVersion.VERSION_17/g' \
+            -e 's/jvmTarget[[:space:]]*=[[:space:]]*"1.8"/jvmTarget = "17"/g' \
+            -e 's/jvmTarget[[:space:]]*=[[:space:]]*"8"/jvmTarget = "17"/g' \
+            -e 's/sourceCompatibility[[:space:]]*=[[:space:]]*JavaVersion.VERSION_1_8/sourceCompatibility = JavaVersion.VERSION_17/g' \
+            -e 's/targetCompatibility[[:space:]]*=[[:space:]]*JavaVersion.VERSION_1_8/targetCompatibility = JavaVersion.VERSION_17/g' \
             {} \;
-
-      - name: Verify JVM configuration
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          echo "Java version:"
-          java -version
-
-          echo "Gradle version:"
-          gradle --version
-
-          echo "Checking JVM settings:"
-          grep -R "VERSION_1_8\|VERSION_8\|jvmTarget.*1.8\|jvmTarget.*8" \
-            --include="*.gradle.kts" . || true
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
