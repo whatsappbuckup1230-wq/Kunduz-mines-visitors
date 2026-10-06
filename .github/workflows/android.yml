@@ -39,13 +39,31 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Find Gradle project
-        run: |
-          PROJECT_DIR=$(find buildsrc -name "settings.gradle.kts" -type f -print -quit | xargs dirname)
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Project: $PROJECT_DIR"
+      - name: Force Java and Kotlin JVM 17
+  run: 
+    APP_GRADLE=$(find "$PROJECT_DIR" -path "*/app/build.gradle.kts" -type f -print -quit)
 
-      - name: Force JVM 17
+    cat >> "$APP_GRADLE" <<'EOF'
+
+    android {
+        compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+        }
+    }
+
+    tasks.withType<JavaCompile>().configureEach {
+        sourceCompatibility = "17"
+        targetCompatibility = "17"
+        options.release.set(17)
+    }
+
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        kotlinOptions {
+            jvmTarget = "17"
+        }
+    }
+    EOF
         run: |
           echo "Fixing all JVM targets to Java 17..."
 
