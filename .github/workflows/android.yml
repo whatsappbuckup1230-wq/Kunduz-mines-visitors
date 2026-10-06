@@ -1,5 +1,3 @@
-
-
 name: Build Android APK
 
 on:
@@ -48,21 +46,24 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: Fix Java and Kotlin JVM targets
+      - name: Force Java 17
         run: |
-          find "$PROJECT_DIR" \( -name "*.gradle" -o -name "*.gradle.kts" \) -type f -exec sed -i \
-            -e 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' \
-            -e 's/JavaVersion.VERSION_8/JavaVersion.VERSION_17/g' \
-            -e 's/jvmTarget[[:space:]]*=[[:space:]]*"1.8"/jvmTarget = "17"/g' \
-            -e 's/jvmTarget[[:space:]]*=[[:space:]]*"8"/jvmTarget = "17"/g' \
-            -e 's/sourceCompatibility[[:space:]]*=[[:space:]]*JavaVersion.VERSION_1_8/sourceCompatibility = JavaVersion.VERSION_17/g' \
-            -e 's/targetCompatibility[[:space:]]*=[[:space:]]*JavaVersion.VERSION_1_8/targetCompatibility = JavaVersion.VERSION_17/g' \
-            {} \;
+          cat > "$PROJECT_DIR/jvm-fix.gradle" <<'EOF'
+          allprojects {
+              tasks.configureEach { task ->
+                  if (task.name.contains("JavaWithJavac")) {
+                      task.sourceCompatibility = "17"
+                      task.targetCompatibility = "17"
+                      task.options.release.set(17)
+                  }
+              }
+          }
+          EOF
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          gradle clean assembleDebug --stacktrace
+          gradle clean assembleDebug --stacktrace --init-script jvm-fix.gradle
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
