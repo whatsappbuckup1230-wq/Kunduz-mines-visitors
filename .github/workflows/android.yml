@@ -8,61 +8,176 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Find ZIP file
+        run: |
+          echo "Files in repository:"
+          find . -maxdepth 2 -type f | sort
 
       - name: Unzip Android project
         run: |
           mkdir -p buildsrc
-          unzip -q Kunduz_Mines_Visitors_Android_Project_v1.1.zip -d buildsrc
+          ZIP_FILE=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
 
-      - name: Enable AndroidX
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP file not found!"
+            exit 1
+          fi
+
+          echo "Using ZIP: $ZIP_FILE"
+          unzip -o "$ZIP_FILE" -d buildsrc
+
+      - name: Find Gradle project
         run: |
-          echo "android.useAndroidX=true" >> buildsrc/gradle.properties
-          echo "android.enableJetifier=true" >> buildsrc/gradle.properties
+          PROJECT_DIR=$(find "$GITHUB_WORKSPACE/buildsrc" -type f -name "settings.gradle.kts" -o -name "settings.gradle" | head -n 1 | xargs -r dirname)
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: Gradle project not found!"
+            find "$GITHUB_WORKSPACE/buildsrc" -maxdepth 5 -type f | sort
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Gradle project: $PROJECT_DIR"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: |
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Find Gradle project
+      - name: Enable AndroidX
         run: |
-          PROJECT_DIR=$(find buildsrc -name "settings.gradle*" -type f -print -quit | xargs dirname)
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Project: $PROJECT_DIR"
+          cat > "$PROJECT_DIR/gradle.properties" <<'EOF'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8
+          EOF
 
-      - name: Fix Java 17
+      - name: Fix Java and Kotlin JVM 17
         run: |
-          cat > "$PROJECT_DIR/jvm-fix.gradle" <<'EOF'
-          allprojects {
-              tasks.withType(JavaCompile).configureEach {
-                  sourceCompatibility = "17"
-                  targetCompatibility = "17"
+          APP_GRADLE=$(find "$PROJECT_DIR/app" -maxdepth 1 -type f \( -name "build.gradle.kts" -o -name "build.gradle" \) | head -n 1)
+
+          if [ -z "$APP_GRADLE" ]; then
+            echo "ERROR: app/build.gradle file not found!"
+            exit 1
+          fi
+
+          echo "App Gradle file: $APP_GRADLE"
+
+          if [[ "$APP_GRADLE" == *.kts ]]; then
+
+            python3 - "$APP_GRADLE" <<'PY'
+          import sys
+
+          path = sys.argv[1]
+
+          with open(path, "r", encoding="utf-8") as f:
+              text = f.read()
+
+          # Change old Java 8 settings to Java 17
+          text = text.replace(
+              "JavaVersion.VERSION_1_8",
+              "JavaVersion.VERSION_17"
+          )
+
+          text = text.replace(
+              'jvmTarget = "1.8"',
+              'jvmTarget = "17"'
+          )
+
+          text = text.replace(
+              "jvmTarget = '1.8'",
+              "jvmTarget = '17'"
+          )
+
+          text = text.replace(
+              'jvmTarget.set(JvmTarget.JVM_1_8)',
+              'jvmTarget.set(JvmTarget.JVM_17)'
+          )
+
+          text = text.replace(
+              'jvmTarget.set("1.8")',
+              'jvmTarget.set("17")'
+          )
+
+          # Add Java 17 compile options if they are missing
+          if "sourceCompatibility = JavaVersion.VERSION_17" not in text:
+              text += """
+
+          android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
               }
           }
-          EOF
-      - name: Build APK
+          """
+
+          # Force Kotlin 17
+          if "kotlinOptions.jvmTarget" not in text and "jvmTarget = \"17\"" not in text:
+              text += """
+
+          tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+              kotlinOptions.jvmTarget = "17"
+          }
+          """
+
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(text)
+
+          print("Java/Kotlin JVM 17 configuration applied.")
+          PY
+
+          else
+
+            sed -i 's/sourceCompatibility[[:space:]]*=.*1\.8/sourceCompatibility = JavaVersion.VERSION_17/g' "$APP_GRADLE" || true
+            sed -i 's/targetCompatibility[[:space:]]*=.*1\.8/targetCompatibility = JavaVersion.VERSION_17/g' "$APP_GRADLE" || true
+            sed -i 's/sourceCompatibility[[:space:]]*=.*JavaVersion.VERSION_1_8/sourceCompatibility = JavaVersion.VERSION_17/g' "$APP_GRADLE" || true
+            sed -i 's/targetCompatibility[[:space:]]*=.*JavaVersion.VERSION_1_8/targetCompatibility = JavaVersion.VERSION_17/g' "$APP_GRADLE" || true
+
+          fi
+
+          echo "========== APP GRADLE =========="
+          cat "$APP_GRADLE"
+          echo "================================"
+
+      - name: Clean Gradle
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          gradle clean assembleDebug --stacktrace --init-script jvm-fix.gradle
+          gradle clean
+
+      - name: Build Debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          gradle assembleDebug --stacktrace --info
+
+      - name: Find APK
+        run: |
+          echo "Searching for APK..."
+          find "$PROJECT_DIR" -type f -name "*.apk" -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Kunduz-Mines-Visitors-APK
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
