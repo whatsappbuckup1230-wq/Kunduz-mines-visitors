@@ -18,15 +18,14 @@ jobs:
         run: |
           mkdir -p buildscr
           unzip -q Kunduz_Mines_Visitors_Android_Project_v1.1.zip -d buildscr
-      - name: Fix CSV Kotlin error
+      - name:  Fix CSV Kotlin error
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
-          p = Path("buildscr/app/src/main/java/af/gov/momp/visitors/MainActivity.kt")
-          s = p.read_text()
-                    s = s.replace('it.replace(', 'it.toString().replace(', 1)
-          p.write_text(s)
+          p = Path("buildsrc/app/src/main/java/af/gov/momp/visitors/MainActivity.kt")
+          lines = p.read_text().splitlines()
+          lines[228] = r'        v.joinToString("\n"){listOf(it.id,it.name,it.father,it.phone,it.tazkira,it.province,it.district,it.date,it.time,it.department,it.subject,it.responsible,it.note).joinToString(","){ "\""+it.toString().replace("\"","\"\"")+"\"" }}'
+          p.write_text("\n".join(lines) + "\n")
           PY
       - name: Add AndroidX properties
         run: |
