@@ -46,20 +46,16 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: Force Java 17
+      - name: Fix Java 17
         run: |
           cat > "$PROJECT_DIR/jvm-fix.gradle" <<'EOF'
           allprojects {
-              tasks.configureEach { task ->
-                  if (task.name.contains("JavaWithJavac")) {
-                      task.sourceCompatibility = "17"
-                      task.targetCompatibility = "17"
-                      task.options.release.set(17)
-                  }
+              tasks.withType(JavaCompile).configureEach {
+                  sourceCompatibility = "17"
+                  targetCompatibility = "17"
               }
           }
           EOF
-
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
